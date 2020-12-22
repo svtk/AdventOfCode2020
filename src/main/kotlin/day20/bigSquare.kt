@@ -2,12 +2,13 @@ package day20
 
 import util.log
 import util.readDayInput
+import util.readSampleInput
 import util.splitByEmptyLines
 import kotlin.IllegalStateException
 
 
 fun main() {
-    val tiles = readDayInput("day20").splitByEmptyLines().map { it.toTile() }
+    val tiles = readSampleInput("day20").splitByEmptyLines().map { it.toTile() }
 //    tiles.forEach(::println)
     val tileConnections = buildTileConnections(tiles)
 //    println(tileConnections)
@@ -27,55 +28,42 @@ fun buildBuildSquare(
     val bigSquare = BigSquare(size)
     for (i in 0 until size) {
         for (j in 0 until size) {
-            val positioning = if (i == 0 && j == 0) {
+            val positionedTile = if (i == 0 && j == 0) {
                 val firstTile = tileIdMap.getValue(corners.first())
                 positionFirstTile(firstTile, tileConnections)
                     .also { println("Found first tile ${i}x$j $it\n") }
-                    .also { println((it as PositionedTile).tile.getContent()) }
+                    .also { println(it.tile.content) }
             } else if (i == 0) {
-                val left = bigSquare[i, j - 1] as Positioning
+                val left = bigSquare[i, j - 1]!!
                 println("Looking for edge tile ${i}x$j left=${left.name}")
                 findAndPositionUpperEdgeTile(left, tileConnections)
                     .also { println("Found edge tile ${i}x$j: $it\n") }
-                    .also { println((it as PositionedTile).tile.getContent()) }
+                    .also { println((it as PositionedTile).tile.content) }
             } else if (j == 0) {
-                val upper = bigSquare[i - 1, j] as Positioning
+                val upper = bigSquare[i - 1, j]!!
                 println("Looking for edge tile ${i}x$j upper=${upper.name}")
                 findAndPositionLeftEdgeTile(upper, tileConnections)
                     .also { println("Found edge tile ${i}x$j: $it\n") }
             } else {
-                val left = bigSquare[i, j - 1] as Positioning
-                val upper = bigSquare[i - 1, j] as Positioning
+                val left = bigSquare[i, j - 1]!!
+                val upper = bigSquare[i - 1, j]!!
                 println("Looking for tile ${i}x$j left=${left.name}, upper=${upper.name}")
                 findAndPositionNewTile(left, upper, tileConnections)
                     .also { println("Found neighboring tile ${i}x$j: $it\n") }
-                    .also { println((it as PositionedTile).tile.getContent()) }
+                    .also { println((it as PositionedTile).tile.content) }
             }
-            bigSquare[i, j] = positioning
+            if (positionedTile != null)
+                bigSquare[i, j] = positionedTile
         }
-    }
-    for (i in 1 until size) {
-        val right = bigSquare[i, 1] as PositionedTile
-        val updatedTile = (bigSquare[i, 0] as UnpositionedTiles).options.first {
-            it.eastSide == right.westSide
-        }
-        bigSquare[i, 0] = updatedTile
-    }
-    for (j in 1 until size) {
-        val down = bigSquare[1, j] as PositionedTile
-        val updatedTile = (bigSquare[0, j] as UnpositionedTiles).options.first {
-            it.southSide == down.northSide
-        }
-        bigSquare[0, j] = updatedTile
     }
     return bigSquare
 }
 
 class BigSquare(val size: Int) {
-    val tiles = MutableList(size) { MutableList<Positioning?>(size) { null } }
-    operator fun get(i: Int, j: Int): Positioning? = tiles.getOrNull(i)?.getOrNull(j)
-    operator fun set(i: Int, j: Int, positioning: Positioning) {
-        tiles[i][j] = positioning
+    val tiles = MutableList(size) { MutableList<PositionedTile?>(size) { null } }
+    operator fun get(i: Int, j: Int): PositionedTile? = tiles.getOrNull(i)?.getOrNull(j)
+    operator fun set(i: Int, j: Int, PositionedTile: PositionedTile) {
+        tiles[i][j] = PositionedTile
     }
 }
 
@@ -113,30 +101,26 @@ fun positionFirstTile(tile: TileInfo, tileConnections: TileConnections): Positio
 }
 
 fun findAndPositionUpperEdgeTile(
-    leftPositioning: Positioning,
+    left: PositionedTile,
     tileConnections: TileConnections
-): Positioning =
-    Positioning(leftPositioning.options.flatMap { left ->
-        val tile = findNeighbor(left.tile, left.eastSide, tileConnections)!!
-        println("Found neighbor $tile")
-        tile.tiles
-            .mapNotNull { positionRightTile(it, left) }
-            .also { println("After position right tile: $it") }
-    })
-        .also { if (it.options.isEmpty()) throw IllegalStateException("No edge tile for left=${leftPositioning}") }
-        .also { println("Positioning: $it") }
+): PositionedTile? {
+    val tileInfo = findNeighbor(left.tile, left.eastSide, tileConnections)!!
+    println("Found neighbor $tileInfo")
+    return tileInfo.tiles
+        .mapNotNull { positionRightTile(it, left) }
+        .firstOrNull()
+        .also { println("PositionedTile: $it") }
+}
 
 fun findAndPositionLeftEdgeTile(
-    upperPositioning: Positioning,
+    upper: PositionedTile,
     tileConnections: TileConnections
-): Positioning =
-    Positioning(upperPositioning.options.flatMap { upper ->
-        val tile = findNeighbor(upper.tile, upper.southSide, tileConnections)!!
-        tile.tiles
-            .mapNotNull { positionDownTile(it, upper) }
-//            .filter { tileConnections.isEdge(it.westSide) }
-    })
-        .also { if (it.options.isEmpty()) throw IllegalStateException("No edge tile for upper=${upperPositioning}") }
+): PositionedTile? {
+    val tileInfo = findNeighbor(upper.tile, upper.southSide, tileConnections)!!
+    return tileInfo.tiles
+        .mapNotNull { positionDownTile(it, upper) }
+        .firstOrNull()
+}
 
 fun findNeighbor(
     tile: Tile?,
@@ -150,34 +134,29 @@ fun findNeighbor(
 
 
 fun findAndPositionNewTile(
-    left: Positioning,
-    upper: Positioning,
+    left: PositionedTile,
+    upper: PositionedTile,
     tileConnections: TileConnections
-): Positioning {
-    val asDownNeighbors = upper.options.associateBy { upperTile ->
-        findNeighbor(upperTile.tile, upperTile.southSide, tileConnections)
+): PositionedTile? {
+    val asDownNeighbor = findNeighbor(upper.tile, upper.southSide, tileConnections)
+    val asRightNeighbor = findNeighbor(left.tile, left.eastSide, tileConnections)
+    if (asDownNeighbor != null && asRightNeighbor != null && asDownNeighbor != asRightNeighbor) {
+        throw IllegalStateException("Two possible neighbors for left=${left.name}: $asRightNeighbor\n" +
+                "and upper=${upper.name}: $asDownNeighbor")
     }
-    val asRightNeighbors =
-        left.options.associateBy { leftTile ->
-            findNeighbor(leftTile.tile, leftTile.eastSide, tileConnections)
-        }
-    println("Looking for new tile: ${asDownNeighbors.keys} ${asRightNeighbors.keys}")
-    val possibleResultingTiles = (asDownNeighbors.keys intersect asRightNeighbors.keys).filterNotNull()
-    if (possibleResultingTiles.isEmpty()) {
-        throw IllegalStateException("Can't find neighbor for left=${left.name} and upper=${upper.name}")
-    }
-    return Positioning(possibleResultingTiles.flatMap { tile ->
-        positionRightTile(tile, asRightNeighbors.getValue(tile)).options intersect
-                positionDownTile(tile, asDownNeighbors.getValue(tile)).options
-    })
+    return if (asDownNeighbor != null) {
+        positionDownTile(asDownNeighbor, upper)
+    } else if (asRightNeighbor != null) {
+        positionRightTile(asRightNeighbor, left)
+    } else null
 }
 
-fun positionRightTile(tile: TileInfo, left: PositionedTile): Positioning =
-    Positioning(tile.tiles.mapNotNull { positionRightTile(it, left) })
+fun positionRightTile(tile: TileInfo, left: PositionedTile): PositionedTile? =
+    tile.tiles.mapNotNull { positionRightTile(it, left) }.firstOrNull()
         .also { log("Positioned right to ${left.name}: $it") }
 
-fun positionDownTile(tile: TileInfo, upper: PositionedTile): Positioning =
-    Positioning(tile.tiles.mapNotNull { positionDownTile(it, upper) })
+fun positionDownTile(tile: TileInfo, upper: PositionedTile): PositionedTile? =
+    tile.tiles.mapNotNull { positionDownTile(it, upper) }.firstOrNull()
         .also { log("Positioned down to ${upper.name}: $it") }
 
 fun positionRightTile(tile: Tile, left: PositionedTile): PositionedTile? {
@@ -192,43 +171,4 @@ fun positionDownTile(tile: Tile, upper: PositionedTile): PositionedTile? {
     if (northIndex == -1) return null
     val (north, east, south, west) = tile.getShiftedSides(from = northIndex)
     return PositionedTile(tile, west, north, east, south)
-}
-
-
-sealed class Positioning {
-    abstract val name: String
-    abstract val options: List<PositionedTile>
-}
-
-fun Positioning(options: List<PositionedTile>) =
-    if (options.size == 1) options.single()
-    else UnpositionedTiles(options.toSet().toList())
-
-data class UnpositionedTiles(
-    override val options: List<PositionedTile>
-) : Positioning() {
-    override val name: String
-        get() = "Unpositioned(${options.map { it.tile.name }})"
-
-    override fun toString(): String {
-        return "UnpositionedTile(options=" +
-                "${options.map { "${it.tile.name}(w=${it.westSide}, n=${it.northSide} e=${it.eastSide} s=${it.southSide})" }})"
-    }
-}
-
-data class PositionedTile(
-    val tile: Tile,
-    val westSide: Int,
-    val northSide: Int,
-    val eastSide: Int,
-    val southSide: Int,
-) : Positioning() {
-    override val name: String
-        get() = "Positioned(${tile.name})"
-    override val options: List<PositionedTile>
-        get() = listOf(this)
-
-    override fun toString(): String {
-        return "PositionedTile(tile=${tile.name}, west=$westSide, north=$northSide, east=$eastSide, south=$southSide)"
-    }
 }
