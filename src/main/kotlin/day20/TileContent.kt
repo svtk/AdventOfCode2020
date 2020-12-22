@@ -19,7 +19,7 @@ private fun display(title: String, tileContent: TileContent) {
     println(tileContent)
 }
 
-class TileContent(private val lines: List<String>) {
+class TileContent(val lines: List<String>) {
     val stringSides = listOf(
         lines.first(),
         lines.map { it.last() }.joinToString(""),

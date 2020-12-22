@@ -1,7 +1,6 @@
 package day20
 
 import util.readDayInput
-import util.readSampleInput
 import util.splitByEmptyLines
 
 
@@ -23,7 +22,7 @@ fun buildBuildSquare(
     corners: List<Int>,
     tileConnections: TileConnections
 ): BigSquare {
-    val bigSquare = BigSquare(size)
+    val bigSquareBuilder = BigSquareBuilder(size)
     for (i in 0 until size) {
         for (j in 0 until size) {
             val positionedTile = if (i == 0 && j == 0) {
@@ -32,38 +31,40 @@ fun buildBuildSquare(
                     .also { println("Found first tile ${i}x$j $it") }
                     .also { println(it.content); println("\n") }
             } else if (i == 0) {
-                val left = bigSquare[i, j - 1]!!
+                val left = bigSquareBuilder[i, j - 1]!!
                 println("Looking for edge tile ${i}x$j left=${left.name}")
                 findAndPositionUpperEdgeTile(left, tileConnections)
                     .also { println("Found edge tile ${i}x$j: $it") }
                     .also { println(it?.content); println("\n") }
             } else if (j == 0) {
-                val upper = bigSquare[i - 1, j]!!
+                val upper = bigSquareBuilder[i - 1, j]!!
                 println("Looking for edge tile ${i}x$j upper=${upper.name}")
                 findAndPositionLeftEdgeTile(upper, tileConnections)
                     .also { println("Found edge tile ${i}x$j: $it") }
                     .also { println(it?.content); println("\n") }
             } else {
-                val left = bigSquare[i, j - 1]!!
-                val upper = bigSquare[i - 1, j]!!
+                val left = bigSquareBuilder[i, j - 1]!!
+                val upper = bigSquareBuilder[i - 1, j]!!
                 println("Looking for tile ${i}x$j left=${left.name}, upper=${upper.name}")
                 findAndPositionNewTile(left, upper, tileConnections)
                     .also { println("Found neighboring tile ${i}x$j: $it") }
                     .also { println(it?.content); println("\n") }
             }
             if (positionedTile != null)
-                bigSquare[i, j] = positionedTile
+                bigSquareBuilder[i, j] = positionedTile
         }
     }
-    return bigSquare
+    return bigSquareBuilder.toBigSquare()
 }
 
-class BigSquare(val size: Int) {
+class BigSquareBuilder(val size: Int) {
     val tiles = MutableList(size) { MutableList<PositionedTile?>(size) { null } }
     operator fun get(i: Int, j: Int): PositionedTile? = tiles.getOrNull(i)?.getOrNull(j)
     operator fun set(i: Int, j: Int, PositionedTile: PositionedTile) {
         tiles[i][j] = PositionedTile
     }
+    @Suppress("UNCHECKED_CAST")
+    fun toBigSquare() = BigSquare(size, tiles as List<List<PositionedTile>>)
 }
 
 fun displayResult(
@@ -71,15 +72,10 @@ fun displayResult(
 ) = buildString {
     for (j in 0 until bigSquare.size) {
         for (i in 0 until bigSquare.size) {
-            append(" " + bigSquare.tiles[i][j]?.name)
+            append(" " + bigSquare.tiles[i][j].name)
         }
         appendLine()
     }
-}
-
-fun throwNoTile(i: Int, j: Int, bigSquare: BigSquare): Nothing {
-    println(displayResult(bigSquare))
-    throw IllegalStateException("No corresponding tile for ($i, $j)")
 }
 
 fun positionFirstTile(tileInfo: TileInfo, tileConnections: TileConnections): PositionedTile {
