@@ -1,37 +1,23 @@
 package day20
 
-interface TileInfo {
-    val id: Int
-    val charName: String
-    val allSides: Set<Int>
-    val initial: Tile
-        get() = tiles[0]
-    val tiles: List<Tile>
-    val content: TileContent
-    val name: String
-        get() = "$charName-$id"
-}
-
 class Tile(
     val index: Char,
-    val sides: List<Int>,
     val tileInfo: TileInfo,
     val content: TileContent
 ) {
     val name: String
-        get() = tileInfo.name
+        get() = "${tileInfo.name}-$index"
 
-    fun getShifted(index: Int) = sides[index % 4]
+    val sides: List<Int>
+        get() = content.sides
 
-    fun getShiftedSides(from: Int) = listOf(
-        getShifted(from),
-        getShifted(from + 1),
-        getShifted(from + 2),
-        getShifted(from + 3),
-    )
+    fun getShifted(index: Int) = sides[(4 + index) % 4]
+
+    val flipped: Tile
+        get() = tileInfo.tiles.first { it != this }
 
     override fun toString(): String {
-        return "Oriented($name-$index, $sides)"
+        return "Oriented($name, $sides)"
     }
 }
 
@@ -41,53 +27,51 @@ class Tile(
 //        .map { it.substring(1, it.lastIndex) }
 
 
-class TileInfoImpl(
-    override val id: Int,
-    override val content: TileContent,
-    override val charName: String
-) : TileInfo {
-    private val stringSides = listOf(
-        content.lines.first(),
-        content.lines.map { it.last() }.joinToString(""),
-        content.lines.last().reversed(),
-        content.lines.map { it.first() }.joinToString("").reversed(),
+class TileInfo(
+    val id: Int,
+    content: TileContent,
+    charName: String
+) {
+    val initial: Tile
+        get() = tiles[0]
+
+    val name: String = "$charName-$id"
+
+    val tiles: List<Tile> = listOf(
+        Tile('n', this, content),
+        Tile('f', this, content.flip()),
     )
-    private val initialSides: List<Int> =
-        stringSides.map { convertTileSideToInt(it) }
 
-    override lateinit var tiles: List<Tile>
-
-    fun buildOrientedTiles() {
-        val flippedSides: List<Int> =
-            stringSides.map { convertTileSideToInt(it.reversed()) }.reversed()
-
-        tiles = listOf(
-            Tile('n', initialSides, this, content),
-            Tile('f', flippedSides, this, content.flip()),
-        )
-    }
-
-    override val allSides: Set<Int> by lazy {
-        tiles.flatMap { it.sides }.toSet()
-    }
+    val allSides: List<Int>
+        get() = tiles[0].sides + tiles[1].sides
 
     override fun toString(): String {
-        return "Tile($name, sides=[${initialSides.joinToString(",")}; " +
+        return "Tile($name, sides=[${tiles[0].sides.joinToString(",")}; " +
                 "${(tiles[1].sides).joinToString(",")}])"
     }
 }
 
 data class PositionedTile(
     val tile: Tile,
-    val westSide: Int,
-    val northSide: Int,
-    val eastSide: Int,
-    val southSide: Int,
+    val rotation: Int,
 ) {
+    val northSide: Int
+        get() = tile.getShifted(- rotation)
+    val eastSide: Int
+        get() = tile.getShifted(1 - rotation)
+    val southSide: Int
+        get() = tile.getShifted(2 - rotation)
+    val westSide: Int
+        get() = tile.getShifted(3 - rotation)
     val name: String
         get() = "Positioned(${tile.name})"
 
+    val content: TileContent
+        get() = tile.content.rotateRight(rotation)
+
     override fun toString(): String {
-        return "PositionedTile(tile=${tile.name}, west=$westSide, north=$northSide, east=$eastSide, south=$southSide)"
+        return "PositionedTile(tile=${tile.name}, " +
+                "north=$northSide, east=$eastSide, south=$southSide, west=$westSide; " +
+                "rotation=$rotation)"
     }
 }
