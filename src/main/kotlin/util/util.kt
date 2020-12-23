@@ -18,7 +18,7 @@ fun List<String>.splitByEmptyLines(): List<List<String>> =
         list
     }
 
-val debug = true
+val debug = false
 fun log(message: Any?) {
     if (debug) println(message)
 }

@@ -1,19 +1,20 @@
 package day20
 
+import util.log
 import util.readDayInput
 import util.splitByEmptyLines
 
 
 fun main() {
     val tiles = readDayInput("day20").splitByEmptyLines().map { it.toTile() }
-//    tiles.forEach(::println)
+//    tiles.forEach(::log)
     val tileConnections = buildTileConnections(tiles)
-//    println(tileConnections)
+//    log(tileConnections)
     val corners = findCornerTiles(tiles, tileConnections)
     val tileIdMap = tiles.associateBy { it.id }
     val bigSquareSize = kotlin.math.sqrt(tiles.size.toDouble()).toInt()
     val bigSquare = buildBuildSquare(bigSquareSize, tileIdMap, corners, tileConnections)
-    println(displayResult(bigSquare))
+    log(displayResult(bigSquare))
 }
 
 fun buildBuildSquare(
@@ -28,27 +29,27 @@ fun buildBuildSquare(
             val positionedTile = if (i == 0 && j == 0) {
                 val firstTile = tileIdMap.getValue(corners.first())
                 positionFirstTile(firstTile, tileConnections)
-                    .also { println("Found first tile ${i}x$j $it") }
-                    .also { println(it.content); println("\n") }
+                    .also { log("Found first tile ${i}x$j $it") }
+                    .also { log(it.content); log("\n") }
             } else if (i == 0) {
                 val left = bigSquareBuilder[i, j - 1]!!
-                println("Looking for edge tile ${i}x$j left=${left.name}")
+                log("Looking for edge tile ${i}x$j left=${left.name}")
                 findAndPositionUpperEdgeTile(left, tileConnections)
-                    .also { println("Found edge tile ${i}x$j: $it") }
-                    .also { println(it?.content); println("\n") }
+                    .also { log("Found edge tile ${i}x$j: $it") }
+                    .also { log(it?.content); log("\n") }
             } else if (j == 0) {
                 val upper = bigSquareBuilder[i - 1, j]!!
-                println("Looking for edge tile ${i}x$j upper=${upper.name}")
+                log("Looking for edge tile ${i}x$j upper=${upper.name}")
                 findAndPositionLeftEdgeTile(upper, tileConnections)
-                    .also { println("Found edge tile ${i}x$j: $it") }
-                    .also { println(it?.content); println("\n") }
+                    .also { log("Found edge tile ${i}x$j: $it") }
+                    .also { log(it?.content); log("\n") }
             } else {
                 val left = bigSquareBuilder[i, j - 1]!!
                 val upper = bigSquareBuilder[i - 1, j]!!
-                println("Looking for tile ${i}x$j left=${left.name}, upper=${upper.name}")
+                log("Looking for tile ${i}x$j left=${left.name}, upper=${upper.name}")
                 findAndPositionNewTile(left, upper, tileConnections)
-                    .also { println("Found neighboring tile ${i}x$j: $it") }
-                    .also { println(it?.content); println("\n") }
+                    .also { log("Found neighboring tile ${i}x$j: $it") }
+                    .also { log(it?.content); log("\n") }
             }
             if (positionedTile != null)
                 bigSquareBuilder[i, j] = positionedTile
@@ -110,7 +111,7 @@ fun findNeighbor(
 ): Tile? {
     if (tile == null || side == null) return null
     return tileConnections.getCorrespondingTile(tile, side)
-        .also { println("Looking for neighbor: $side $tile; $it") }
+        .also { log("Looking for neighbor: $side $tile; $it") }
 }
 
 

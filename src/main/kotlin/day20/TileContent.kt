@@ -32,26 +32,11 @@ class TileContent(val lines: List<String>) {
             return stringSides.map { convertTileSideToInt(it) }
         }
 
-    fun flip(): TileContent =
-        TileContent(lines.map { it.reversed() })
+    fun flip(): TileContent = TileContent(flip(lines))
 
-    fun rotateRight(i: Int): TileContent {
-        val number = (4 + i) % 4
-        return (1..number).fold(this) { content, _ -> content.rotateRight() }
-    }
+    fun rotateRight(i: Int) = TileContent(rotateRight(lines, i))
 
-    fun rotateRight(): TileContent {
-        val size = lines.size
-        check(lines.all { it.length == size })
-        val newLines = (0 until size).map { i ->
-            buildString {
-                (0 until size).map { j ->
-                    append(lines[size - 1 - j][i])
-                }
-            }
-        }
-        return TileContent(newLines)
-    }
+    fun rotateRight() = TileContent(rotateRight(lines))
 
     override fun toString() = lines.joinToString("\n")
 
