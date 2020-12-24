@@ -3,19 +3,18 @@ package day22.part2
 import day22.part2.GameResult.A_WINS
 import day22.part2.GameResult.B_WINS
 import util.readDayInput
-import util.readSampleInput
 import util.splitByEmptyLines
 
 val N = 50
 
 fun main() {
-    val input = readSampleInput("day22").splitByEmptyLines()
+    val input = readDayInput("day22").splitByEmptyLines()
     val (playerA, playerB) =
 //      readSampleInput("day22", "sampleInputPart2")
         input.map { list ->
             Player(list.subList(1, list.size).map(String::toInt))
         }
-    val game = playGame(playerA, playerB, GameIndex.nextIndex())
+    val game = playGame(RoundConfiguration(playerA, playerB), GameIndex.nextIndex())
     val finalConfiguration = game.finalConfiguration
     log("\n\n== Post-game results ==")
     finalConfiguration?.logDecks()
@@ -23,28 +22,26 @@ fun main() {
 }
 
 enum class GameResult(val winner: String) { A_WINS("1"), B_WINS("2") }
-data class Result(val gameResult: GameResult, val finalConfiguration: RoundConfiguration?)
+data class Result(val gameResult: GameResult, val finalConfiguration: RoundConfiguration? = null)
 
 object PlayedGames {
-    private val games = mutableMapOf<RoundConfiguration, Result>()
+    private val games = mutableMapOf<RoundConfiguration, GameResult>()
 
-    fun checkGame(roundConfiguration: RoundConfiguration): Result? =
+    fun checkGame(roundConfiguration: RoundConfiguration): GameResult? =
         games[roundConfiguration]
 
-    fun recordGame(roundConfiguration: RoundConfiguration, result: Result) {
+    fun recordGame(roundConfiguration: RoundConfiguration, result: GameResult) {
         games[roundConfiguration] = result
     }
 }
 
-fun playGame(playerA: Player, playerB: Player, gameIndex: Int): Result {
+fun playGame(configuration: RoundConfiguration, gameIndex: Int): Result {
     log("=== Game $gameIndex ===")
-    val configuration = RoundConfiguration(playerA, playerB)
     log(configuration)
     val oldResult = PlayedGames.checkGame(configuration)
-    if (oldResult != null) return oldResult.also { println("Repetition!") }
+    if (oldResult != null) return Result(oldResult)//.also { println("Repetition!") }
     val round = Round(configuration, setOf(), 1, gameIndex)
-    val rounds = generateSequence(round) { it.nextRound() }.toList()
-    val resultingRound = rounds.last()
+    val resultingRound = generateSequence(round) { it.nextRound() }.last()
     val gameResult = when {
         resultingRound.repeatsItself() -> A_WINS
         resultingRound.playerA.size > resultingRound.playerA.size -> A_WINS
@@ -52,7 +49,7 @@ fun playGame(playerA: Player, playerB: Player, gameIndex: Int): Result {
     }
     log("The winner of game $gameIndex is player ${gameResult.winner}!")
     return Result(gameResult, resultingRound.configuration)
-        .also { PlayedGames.recordGame(configuration, Result(gameResult, null)) }
+        .also { PlayedGames.recordGame(configuration, gameResult) }
 }
 
 fun IntArray.tail() = IntArray(N) { this.getOrElse(it + 1) { 0 } }
@@ -67,11 +64,6 @@ data class Player(
         }
     }
     fun isEmpty() = size == 0
-    fun nextRound(number: Int): Player {
-        val new = IntArray(N)
-        cards.copyInto(new, startIndex = 1, endIndex = number + 1)
-        return Player(new, number)
-    }
     fun losing() = Player(cards.tail(), size - 1)
     fun winning(first: Int, second: Int): Player {
         val tail = cards.tail()
@@ -113,7 +105,39 @@ data class Round(
 data class RoundConfiguration(
     val playerA: Player,
     val playerB: Player,
-)
+) {
+    fun nextGamePlayer(
+        player: Player,
+        size: Int,
+        replacements: Map<Int, Int>
+    ): Player {
+        val new = IntArray(N)
+        player.cards.copyInto(new, startIndex = 1, endIndex = size + 1)
+        for (i in 0 until size) {
+            new[i] = replacements.getValue(new[i])
+        }
+        return Player(new, size)
+    }
+
+    fun nextGameConfiguration(): RoundConfiguration {
+        val cardA = playerA.cards.first()
+        val cardB = playerB.cards.first()
+        val values = mutableListOf<Int>()
+        for (i in 1..cardA) {
+            values += playerA.cards[i]
+        }
+        for (j in 1..cardB) {
+            values += playerB.cards[j]
+        }
+        values.sort()
+        val replacements =
+            values.withIndex().associate { it.value to it.index + 1 }
+
+        val nextA = nextGamePlayer(playerA, cardA, replacements)
+        val nextB = nextGamePlayer(playerB, cardB, replacements)
+        return RoundConfiguration(nextA, nextB)
+    }
+}
 
 fun RoundConfiguration.calculateScore(): Long {
     val winner = listOf(playerA, playerB).maxByOrNull { it.size }!!
@@ -141,8 +165,7 @@ fun Round.nextRound(): Round? {
 
     log("Playing a sub-game to determine the winner...\n")
     val game = playGame(
-        playerA.nextRound(cardA),
-        playerB.nextRound(cardB),
+        configuration.nextGameConfiguration(),
         GameIndex.nextIndex()
     )
     log("\n...anyway, back to game $gameIndex.")
