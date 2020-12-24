@@ -1,7 +1,7 @@
 package day22.part2
 
-import day22.part2.GameResult.A_WINS
-import day22.part2.GameResult.B_WINS
+import day22.part2.Winner.A_WINS
+import day22.part2.Winner.B_WINS
 import util.readDayInput
 import util.readSampleInput
 import util.splitByEmptyLines
@@ -18,12 +18,31 @@ fun main() {
     val game = playGame(RoundConfiguration(playerA, playerB), GameIndex.nextIndex())
     val finalConfiguration = game.finalConfiguration
     log("\n\n== Post-game results ==")
-    finalConfiguration?.logDecks(true)
-    println(finalConfiguration?.calculateScore())
+    finalConfiguration.logDecks(true)
+    println(finalConfiguration.calculateScore())
 }
 
-enum class GameResult(val winner: String) { A_WINS("1"), B_WINS("2") }
-data class Result(val gameResult: GameResult, val finalConfiguration: RoundConfiguration? = null)
+enum class Winner(private val s: String) {
+    A_WINS("1"), B_WINS("2");
+
+    override fun toString() = s
+}
+
+data class GameResult(
+    val winner: Winner,
+    val finalConfiguration: RoundConfiguration,
+)
+
+data class ResultWithConfigurations(
+    val gameResult: GameResult,
+    val prevConfigurations: Set<RoundConfiguration>,
+) {
+    constructor(
+        winner: Winner,
+        finalConfiguration: RoundConfiguration,
+        prevConfigurations: Set<RoundConfiguration>,
+    ): this(GameResult(winner, finalConfiguration), prevConfigurations)
+}
 
 object PlayedGames {
     private val games = mutableMapOf<RoundConfiguration, GameResult>()
@@ -31,26 +50,23 @@ object PlayedGames {
     fun checkGame(roundConfiguration: RoundConfiguration): GameResult? =
         games[roundConfiguration]
 
-    fun recordGame(roundConfiguration: RoundConfiguration, result: GameResult) {
-        games[roundConfiguration] = result
+    fun recordGame(roundConfiguration: RoundConfiguration, gameResult: GameResult) {
+        games[roundConfiguration] = gameResult
     }
 }
 
-fun playGame(configuration: RoundConfiguration, gameIndex: Int): Result {
+fun playGame(configuration: RoundConfiguration, gameIndex: Int): GameResult {
     log("=== Game $gameIndex ===")
     log(configuration)
     val oldResult = PlayedGames.checkGame(configuration)
-    if (oldResult != null) return Result(oldResult)//.also { println("Repetition!") }
+    if (oldResult != null) return oldResult//.also { println("Repetition!") }
     val round = Round(configuration, setOf(), 1, gameIndex)
-    val resultingRound = playNextRound(round)
-    val gameResult = when {
-        resultingRound.repeatsItself() -> A_WINS
-        resultingRound.playerA.size > resultingRound.playerA.size -> A_WINS
-        else -> B_WINS
+    val resultWithConfigurations = playNextRound(round)
+    log("The winner of game $gameIndex is player $resultWithConfigurations!")
+    resultWithConfigurations.prevConfigurations.forEach { prevConf ->
+        PlayedGames.recordGame(prevConf, resultWithConfigurations.gameResult)
     }
-    log("The winner of game $gameIndex is player ${gameResult.winner}!")
-    return Result(gameResult, resultingRound.configuration)
-        .also { PlayedGames.recordGame(configuration, gameResult) }
+    return resultWithConfigurations.gameResult
 }
 
 fun List<Int>.tail() = subList(1, size)
@@ -188,9 +204,18 @@ fun RoundConfiguration.calculateScore(): Long {
         .foldIndexed(0L) { index, acc, element -> acc + (size - index) * element }
 }
 
-tailrec fun playNextRound(round: Round): Round {
-    if (round.repeatsItself()) return round
-    if (round.playerA.isEmpty() || round.playerB.isEmpty()) return round
+tailrec fun playNextRound(round: Round): ResultWithConfigurations {
+    if (round.repeatsItself()) {
+        return ResultWithConfigurations(A_WINS, round.configuration, round.prevConfigurations)
+    }
+    if (round.playerA.isEmpty() || round.playerB.isEmpty()) {
+        val winner = if (round.playerA.isEmpty()) B_WINS else A_WINS
+        return ResultWithConfigurations(winner, round.configuration, round.prevConfigurations)
+    }
+
+    val oldResult = PlayedGames.checkGame(round.configuration)
+    if (oldResult != null) return ResultWithConfigurations(oldResult, emptySet())
+
     val cardA = round.playerA.first
     val cardB = round.playerB.first
 
@@ -209,7 +234,7 @@ tailrec fun playNextRound(round: Round): Round {
             GameIndex.nextIndex()
         )
         log("\n...anyway, back to game ${round.gameIndex}.")
-        if (game.gameResult == A_WINS) {
+        if (game.winner == A_WINS) {
             round.createNextRound(round.playerA.winning(cardA, cardB), round.playerB.losing(), A_WINS)
         } else {
             round.createNextRound(round.playerA.losing(), round.playerB.winning(cardB, cardA), B_WINS)
@@ -218,7 +243,7 @@ tailrec fun playNextRound(round: Round): Round {
     return playNextRound(nextRound)
 }
 
-fun Round.createNextRound(playerA: Player, playerB: Player, roundResult: GameResult): Round {
+fun Round.createNextRound(playerA: Player, playerB: Player, roundResult: Winner): Round {
     val newConfiguration = RoundConfiguration(playerA, playerB)
     logRoundResult(roundResult)
     return Round(newConfiguration, prevConfigurations + configuration, roundIndex + 1, gameIndex)
@@ -238,8 +263,8 @@ fun RoundConfiguration.logDecks(debug: Boolean = DEBUG) {
     log("Player 2's deck: ${playerB.logCards()}", debug)
 }
 
-fun Round.logRoundResult(gameResult: GameResult) {
-    log("Player ${gameResult.winner} wins round $roundIndex of game $gameIndex!")
+fun Round.logRoundResult(winner: Winner) {
+    log("Player $winner wins round $roundIndex of game $gameIndex!")
 }
 
 object GameIndex {
