@@ -3,6 +3,7 @@ package day22.part2
 import day22.part2.GameResult.A_WINS
 import day22.part2.GameResult.B_WINS
 import util.readDayInput
+import util.readSampleInput
 import util.splitByEmptyLines
 
 val N = 50
@@ -41,7 +42,7 @@ fun playGame(configuration: RoundConfiguration, gameIndex: Int): Result {
     val oldResult = PlayedGames.checkGame(configuration)
     if (oldResult != null) return Result(oldResult)//.also { println("Repetition!") }
     val round = Round(configuration, setOf(), 1, gameIndex)
-    val resultingRound = generateSequence(round) { it.nextRound() }.last()
+    val resultingRound = playNextRound(round)
     val gameResult = when {
         resultingRound.repeatsItself() -> A_WINS
         resultingRound.playerA.size > resultingRound.playerA.size -> A_WINS
@@ -146,34 +147,35 @@ fun RoundConfiguration.calculateScore(): Long {
         .foldIndexed(0L) { index, acc, element -> acc + (size - index) * element }
 }
 
-fun Round.nextRound(): Round? {
-    if (repeatsItself()) return null
-    if (playerA.isEmpty() || playerB.isEmpty()) return null
-    val cardA = playerA.cards.first()
-    val cardB = playerB.cards.first()
+tailrec fun playNextRound(round: Round): Round {
+    if (round.repeatsItself()) return round
+    if (round.playerA.isEmpty() || round.playerB.isEmpty()) return round
+    val cardA = round.playerA.cards.first()
+    val cardB = round.playerB.cards.first()
 
-    logRoundStart(cardA, cardB)
+    round.logRoundStart(cardA, cardB)
 
     fun Player.hasEnoughCards() = size - 1 >= cards.first()
-    if (!playerA.hasEnoughCards() || !playerB.hasEnoughCards()) {
-        return if (cardA >= cardB) {
-            createNextRound(playerA.winning(cardA, cardB), playerB.losing(), A_WINS)
+    val nextRound = if (!round.playerA.hasEnoughCards() || !round.playerB.hasEnoughCards()) {
+        if (cardA >= cardB) {
+            round.createNextRound(round.playerA.winning(cardA, cardB), round.playerB.losing(), A_WINS)
         } else {
-            createNextRound(playerA.losing(), playerB.winning(cardB, cardA), B_WINS)
+            round.createNextRound(round.playerA.losing(), round.playerB.winning(cardB, cardA), B_WINS)
+        }
+    } else {
+        log("Playing a sub-game to determine the winner...\n")
+        val game = playGame(
+            round.configuration.nextGameConfiguration(),
+            GameIndex.nextIndex()
+        )
+        log("\n...anyway, back to game ${round.gameIndex}.")
+        return if (game.gameResult == A_WINS) {
+            round.createNextRound(round.playerA.winning(cardA, cardB), round.playerB.losing(), A_WINS)
+        } else {
+            round.createNextRound(round.playerA.losing(), round.playerB.winning(cardB, cardA), B_WINS)
         }
     }
-
-    log("Playing a sub-game to determine the winner...\n")
-    val game = playGame(
-        configuration.nextGameConfiguration(),
-        GameIndex.nextIndex()
-    )
-    log("\n...anyway, back to game $gameIndex.")
-    return if (game.gameResult == A_WINS) {
-        createNextRound(playerA.winning(cardA, cardB), playerB.losing(), A_WINS)
-    } else {
-        createNextRound(playerA.losing(), playerB.winning(cardB, cardA), B_WINS)
-    }
+    return playNextRound(nextRound)
 }
 
 fun Round.createNextRound(playerA: Player, playerB: Player, roundResult: GameResult): Round {
