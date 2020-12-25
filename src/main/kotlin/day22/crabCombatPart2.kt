@@ -9,13 +9,16 @@ import util.splitByEmptyLines
 val DEBUG = false
 
 fun main() {
-    val input = readDayInput("day22").splitByEmptyLines()
-    val (playerA, playerB) =
+    val input =
+        readDayInput("day22")
+//      readSampleInput("day22")
 //      readSampleInput("day22", "sampleInputPart2")
+            .splitByEmptyLines()
+    val (playerA, playerB) =
         input.map { list ->
             PlayerOptimized(list.subList(1, list.size).map(String::toInt))
         }
-    val game = playGame(RoundConfiguration(playerA, playerB), GameIndex.nextIndex())
+    val game = playGame(RoundConfiguration(playerA, playerB), GameIndex.nextIndex(""))
     val finalConfiguration = game.finalConfiguration
     log("\n\n== Post-game results ==")
     finalConfiguration.logDecks(true)
@@ -49,20 +52,26 @@ object PlayedGames {
 
     fun checkGame(roundConfiguration: RoundConfiguration): GameResult? =
         games[roundConfiguration]
+            .also {
+                if (it != null) {
+                    log("Repetition: winner is ${it.winner}")
+                    roundConfiguration.logDecks()
+                    log()
+                }
+            }
 
     fun recordGame(roundConfiguration: RoundConfiguration, gameResult: GameResult) {
         games[roundConfiguration] = gameResult
     }
 }
 
-fun playGame(configuration: RoundConfiguration, gameIndex: Int): GameResult {
+fun playGame(configuration: RoundConfiguration, gameIndex: String): GameResult {
     log("=== Game $gameIndex ===")
-    log(configuration)
     val oldResult = PlayedGames.checkGame(configuration)
     if (oldResult != null) return oldResult//.also { println("Repetition!") }
     val round = Round(configuration, setOf(), 1, gameIndex)
     val resultWithConfigurations = playNextRound(round)
-    log("The winner of game $gameIndex is player $resultWithConfigurations!")
+    log("The winner of game $gameIndex is player ${resultWithConfigurations.gameResult.winner}!")
     resultWithConfigurations.prevConfigurations.forEach { prevConf ->
         PlayedGames.recordGame(prevConf, resultWithConfigurations.gameResult)
     }
@@ -79,7 +88,7 @@ interface Player {
     fun winning(card1: Int, card2: Int): Player
     fun isEmpty(): Boolean
     fun hasEnoughCards() = size - 1 >= first
-    fun nextGamePlayer(size: Int, replacements: Map<Int, Int>): Player
+    fun nextGamePlayer(size: Int): Player
     fun cards(): List<Int>
 }
 
@@ -94,12 +103,7 @@ data class PlayerCompact(val cards: List<Int>) : Player {
 
     override fun nextGamePlayer(
         size: Int,
-        replacements: Map<Int, Int>
-    ) = PlayerCompact(
-        cards
-            .subList(1, 1 + size)
-            .map { replacements.getValue(it) }
-    )
+    ) = PlayerCompact(cards.subList(1, 1 + size))
 
     override fun cards(): List<Int> = cards
 }
@@ -133,13 +137,9 @@ data class PlayerOptimized(
 
     override fun nextGamePlayer(
         size: Int,
-        replacements: Map<Int, Int>
     ): PlayerOptimized {
         val new = IntArray(size)
         cardsArray.copyInto(new, startIndex = 1, endIndex = size + 1)
-        for (i in 0 until size) {
-            new[i] = replacements.getValue(new[i])
-        }
         return PlayerOptimized(new)
     }
 
@@ -166,7 +166,7 @@ data class Round(
     val configuration: RoundConfiguration,
     val prevConfigurations: Set<RoundConfiguration>,
     val roundIndex: Int,
-    val gameIndex: Int,
+    val gameIndex: String,
 ) {
     val playerA get() = configuration.playerA
     val playerB get() = configuration.playerB
@@ -178,21 +178,8 @@ data class RoundConfiguration(
     val playerB: Player,
 ) {
     fun nextGameConfiguration(): RoundConfiguration {
-        val cardA = playerA.first
-        val cardB = playerB.first
-        val values = mutableListOf<Int>()
-        for (i in 1..cardA) {
-            values += playerA[i]
-        }
-        for (j in 1..cardB) {
-            values += playerB[j]
-        }
-        values.sort()
-        val replacements =
-            values.withIndex().associate { it.value to it.index + 1 }
-
-        val nextA = playerA.nextGamePlayer(cardA, replacements)
-        val nextB = playerB.nextGamePlayer(cardB, replacements)
+        val nextA = playerA.nextGamePlayer(playerA.first)
+        val nextB = playerB.nextGamePlayer(playerB.first)
         return RoundConfiguration(nextA, nextB)
     }
 }
@@ -231,7 +218,7 @@ tailrec fun playNextRound(round: Round): ResultWithConfigurations {
         log("Playing a sub-game to determine the winner...\n")
         val game = playGame(
             round.configuration.nextGameConfiguration(),
-            GameIndex.nextIndex()
+            GameIndex.nextIndex(round.gameIndex)
         )
         log("\n...anyway, back to game ${round.gameIndex}.")
         if (game.winner == A_WINS) {
@@ -269,7 +256,9 @@ fun Round.logRoundResult(winner: Winner) {
 
 object GameIndex {
     private var maxIndex = 1
-    fun nextIndex(): Int = maxIndex++
+    fun nextIndex(prevIndex: String): String =
+        (if (prevIndex.isEmpty()) "" else "$prevIndex-") +
+        "${maxIndex++}"
 }
 
 fun log(message: Any? = "", debug: Boolean = DEBUG) {
