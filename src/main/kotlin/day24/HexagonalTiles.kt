@@ -1,6 +1,7 @@
 package day24
 
 import day24.Color.*
+import util.readDayInput
 import util.readSampleInput
 
 data class Tile(val x: Int, val y: Int) {
@@ -22,28 +23,19 @@ enum class Color {
     }
 }
 
-class HexagonalTiles(initialData: Map<Tile, Color> = mapOf()) {
-    private val mutableData = initialData.toMutableMap()
-    val data: Map<Tile, Color>
-        get() = mutableData
-
-    fun addMissing(initialData: Map<Tile, Color>) {
-        initialData.keys.flatMap { it.adjacent() }.forEach { addIfMissing(it) }
-    }
-
-    fun flip(tile: Tile): HexagonalTiles {
-        val current = mutableData[tile] ?: WHITE
-        mutableData[tile] = current.flip()
-        tile.adjacent().forEach { addIfMissing(it) }
-    }
-
-    private fun addIfMissing(tile: Tile) {
-        if (tile !in mutableData) {
-            mutableData[tile] = WHITE
-        }
-    }
-
+class HexagonalTiles(val data: Map<Tile, Color> = mapOf()) {
     operator fun get(tile: Tile): Color = data[tile] ?: WHITE
+}
+
+fun HexagonalTiles.flip(tile: Tile): HexagonalTiles {
+    val current = data[tile] ?: WHITE
+    return HexagonalTiles(data + (tile to current.flip()))
+}
+
+fun HexagonalTiles.addEdges(): HexagonalTiles {
+    val allEdges = data.keys.flatMap { it.adjacent() }
+    val newEdges = allEdges - data.keys
+    return HexagonalTiles(data + newEdges.associateWith { WHITE })
 }
 
 fun HexagonalTiles.countBlackAdjacentTiles(tile: Tile) =
@@ -59,20 +51,22 @@ fun HexagonalTiles.nextDay(): HexagonalTiles {
         color == WHITE && countBlackAdjacentTiles(tile) == 2
     }.keys
     return HexagonalTiles(data + toWhite.associateWith { WHITE } + toBlack.associateWith { BLACK })
+        .addEdges()
 }
 
 fun HexagonalTiles.countBlackTiles() = data.count { (_, color) -> color == BLACK }
 
 fun main() {
-    val hexagonalTiles = HexagonalTiles()
-    val tiles = readSampleInput("day24").map(::readTile)
-    tiles.forEach { hexagonalTiles.flip(it.tile) }
-//    printTiles(tiles)
+    val tiles = readDayInput("day24").map(::readTile)
+    val hexagonalTiles =
+        tiles.fold(HexagonalTiles()) { hexagonalTiles, tileInfo -> hexagonalTiles.flip(tileInfo.tile) }
+            .addEdges()
+    printTiles(tiles)
     println(hexagonalTiles.countBlackTiles())
 //    printBlackTiles(hexagonalTiles)
     println("----")
 
-    val result = (1..10).fold(hexagonalTiles) { dayTiles, day ->
+    val result = (1..100).fold(hexagonalTiles) { dayTiles, day ->
         dayTiles.nextDay().also {
             println("Day $day: ${it.countBlackTiles()}")
 //            printBlackTiles(it)
