@@ -1,100 +1,98 @@
 package day23.part2
 
+import util.readDayInput
 import util.readSampleInput
 
+class Node(
+    val value: Int,
+) {
+    lateinit var next: Node
+    override fun toString(): String {
+        return "Node(value=$value, next=${next.value})"
+    }
+
+}
+
+val SIZE = 1000000
+val MOVES = 10000000
 val DEBUG = false
 
+class NodesData(
+    private val nodes: Map<Int, Node>
+) {
+    operator fun get(i: Int) = nodes.getValue(i)
+    override fun toString() = nodes.toString()
+}
+
 fun main() {
-//    val size = 9
-//    val moves = 10
-    val size = 1000000
-    val moves = 100000000
-    val input = readSampleInput("day23").first().map { it - '0' }
+    val input = readDayInput("day23").first().map { it - '0' }
     val max = input.maxOrNull()!!
-    val initialArray = (input + ((max + 1)..size).toList()).toIntArray()
-    val cups = Cups(move = 1, initialArray, IntArray(initialArray.size))
-    repeat(moves) {
-        cups.nextMove()
-//        println(cups.resultPart2Numbers())
+    val initialList = (input + ((max + 1)..SIZE).toList())
+
+    val nodesData = NodesData(initialList.associateWith { Node(it) })
+    initialList.forEachIndexed { index, value ->
+        nodesData[value].next = nodesData[initialList[(index + 1) % SIZE]]
     }
-    log(false) { cups.values.joinToString() }
-    println(cups.resultPart1())
+    val cups = Cups(1, nodesData, nodesData[initialList[0]])
+    repeat(MOVES) {
+        cups.nextMove()
+    }
     println(cups.resultPart2Numbers())
     println(cups.resultPart2())
 }
 
-fun Cups.resultPart1(): String {
-    val oneIndex = values.indexOf(1)
-    return (1..values.lastIndex).joinToString("") { "${this[oneIndex + it]}" }
-}
-
-
 fun Cups.resultPart2(): Long {
-    val oneIndex = values.indexOf(1)
-    return 1L * this[oneIndex + 1] * this[oneIndex + 2]
+    val one = nodesData[1]
+    return 1L * one.next.value * one.next.next.value
 }
 
 fun Cups.resultPart2Numbers(): Pair<Int, Int> {
-    val oneIndex = values.indexOf(1)
-    return Pair(this[oneIndex + 1], this[oneIndex + 2])
+    val one = nodesData[1]
+    return Pair(one.next.value, one.next.next.value)
 }
+
 
 class Cups(
     var move: Int,
-    var values: IntArray,
-    var next: IntArray,
-) {
-    operator fun get(i: Int) = values.getNormalized(i)
-}
+    val nodesData: NodesData,
+    var current: Node
+)
 
-fun IntArray.normalizeIndex(i: Int) = i % size
-fun IntArray.getNormalized(i: Int) = this[normalizeIndex(i)]
+fun fromNodeSequence(from: Node) =
+    generateSequence(from) { node -> node.next.takeIf { it != from } }
+
+fun minusOneSequence(nodesData: NodesData, from: Node) =
+    generateSequence(from) { node ->
+        if (node.value == 1)
+            nodesData[SIZE]
+        else
+            nodesData[node.value - 1]
+    }
 
 fun Cups.nextMove() {
     log { "-- move $move --" }
     log {
-        "cups: " + values.withIndex().joinToString("") { (index, value) ->
+        "cups: " + fromNodeSequence(current).withIndex().joinToString("") { (index, node) ->
+            val value = node.value
             if (index == 0) "($value)" else " $value "
         }
     }
-    log {
-        val pickedUp = (1..3).map { this[it] }
-        "pick up: " + pickedUp.joinToString()
-    }
-    val currentCup = this[0]
-    val circleIndices = 4..values.lastIndex
-    val destinationCupIndex = circleIndices
-        .filter { this[it] < currentCup }
-        .maxByOrNull { this[it] }
-        ?: circleIndices.maxByOrNull { this[it] }!!
+    val pickedUp = fromNodeSequence(current.next).take(3).toList()
+    log { "pick up: " + pickedUp.joinToString { "${it.value}" } }
+    val destination = minusOneSequence(nodesData, current).first { it !in pickedUp && it != current }
 
-    log {
-        val destination = this[destinationCupIndex]
-        "destination: $destination"
-    }
-    log {
-        "destination index: $destinationCupIndex"
-    }
+    val x = pickedUp[2].next
+    val y = destination.next
+
+    current.next = x
+    destination.next = pickedUp[0]
+    pickedUp[2].next = y
+
+    log { "destination: ${destination.value}" }
+    log { "sequence: " + fromNodeSequence(current).toList() }
     log()
-    values.copyInto(next, destinationOffset = 0, startIndex = 4, endIndex = destinationCupIndex + 1)
-//    for (i in 4..destinationCupIndex) {
-//        next[i - 4] = values[i]
-//    }
-    val newDestinationIndex = destinationCupIndex - 4
-    values.copyInto(next, destinationOffset = newDestinationIndex + 1, startIndex = 1, endIndex = 4)
-//    for (i in 1..3) {
-//        next[newDestinationIndex + i] = values[i]
-//    }
-    values.copyInto(next, destinationOffset = destinationCupIndex, startIndex = destinationCupIndex + 1, endIndex = values.size)
-//    for (i in (destinationCupIndex + 1)..values.lastIndex) {
-//        next[i - 1] = values[i]
-//    }
-    next[values.lastIndex] = values[0]
-
-    val tmp = values
-    values = next
-    next = tmp
     move++
+    current = current.next
 }
 
 fun log(message: Any? = "", debug: Boolean = DEBUG) {
