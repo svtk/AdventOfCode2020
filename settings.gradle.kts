@@ -6,5 +6,5 @@ pluginManagement {
     }
     
 }
-rootProject.name = "AdventOfCode"
+rootProject.name = "AdventOfCode2020"
 

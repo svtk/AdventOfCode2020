@@ -14,10 +14,10 @@ fun main() {
     val sumOfIntersections = groups
 //        .map { it.fold(setOf<Char>()) { acc, s -> acc.intersect(s.toSet()) }.size }
 //        .onEach { println(it) }
-        .map { it.map { it.toSet() } }
+        .map { list -> list.map(String::toSet) }
 //        .onEach { println(it) }
-        .map {
-            it.reduceOrNull { acc, s -> acc.intersect(s.toSet()) }?.size ?: 0
+        .map { list ->
+            list.reduceOrNull { acc, s -> acc.intersect(s.toSet()) }?.size ?: 0
         }
 //        .onEach { println(it) }
         .sum()
